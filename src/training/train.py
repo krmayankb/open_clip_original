@@ -9,6 +9,11 @@ import torch
 import torch.nn.functional as F
 from torch.nn.parallel.distributed import DistributedDataParallel
 
+try: 
+    import torch_xla.core.xla_model as xm
+except: 
+    pass
+
 try:
     import wandb
 except ImportError:
@@ -166,7 +171,10 @@ def train_one_epoch(model, data, loss, epoch, optimizer, scaler, scheduler, dist
         else:
             if args.grad_clip_norm is not None:
                 torch.nn.utils.clip_grad_norm_(model.parameters(), args.grad_clip_norm, norm_type=2.0)
-            optimizer.step()
+            if args.use_tpu:
+                xm.optimizer_step(optimizer, barrier=True)
+            else: 
+                optimizer.step()
 
         # reset gradient accum, if enabled
         if args.accum_freq > 1:

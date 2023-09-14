@@ -13,8 +13,10 @@ from torch import optim
 from torch.cuda.amp import GradScaler
 
 try:
+    import torch_xla
     import torch_xla.core.xla_model as xm
-except:
+    import torch_xla.distributed.xla_multiprocessing as xmp
+except ImportError:
     pass 
 
 try:
@@ -71,13 +73,10 @@ def get_latest_checkpoint(path: str, remote : bool):
         return checkpoints[-1]
     return None
 
-
-def main(args):
-    args = parse_args(args)
-
-    if args.use_tpu and xm.xla_available():
+def main_worker(rank, args):
+    if args.use_tpu and xm.xla_device():
         xm.set_rng_seed(args.seed)  # Set random seed 
-        xm.set_matmul_reduction_type(xm.MatmulReductionType.TREE)
+        device = xm.xla_device()
     elif torch.cuda.is_available():
         # This enables tf32 on Ampere GPUs which is only 8% slower than
         # float16 and almost as accurate as float32
@@ -492,6 +491,15 @@ def copy_codebase(args):
     copytree(current_code_path, new_code_path, ignore=ignore_patterns('log', 'logs', 'wandb'))
     print("Done copying code.")
     return 1
+
+
+def main(args):
+    args = parse_args(args)
+    if args.use_tpu: 
+        assert xm.xla_device(), "TPU not available"
+        xmp.spawn(main_worker, args=(args,), nprocs=args.tpu_cores, start_method = "fork")
+    else: 
+        main_worker(None, args)
 
 
 if __name__ == "__main__":

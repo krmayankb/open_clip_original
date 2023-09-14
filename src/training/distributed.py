@@ -106,7 +106,11 @@ def init_distributed_device(args):
             args.rank = torch.distributed.get_rank()
         args.distributed = True
 
-    if torch.cuda.is_available():
+    if xm.xla_device(): 
+        args.local_rank = xm.get_local_ordinal()
+        args.rank = xm.get_ordinal()
+        args.world_size = xm.xrt_world_size()
+    elif torch.cuda.is_available():
         if args.distributed and not args.no_set_device_rank:
             device = 'cuda:%d' % args.local_rank
         else:
@@ -114,8 +118,8 @@ def init_distributed_device(args):
         torch.cuda.set_device(device)
     else:
         device = 'cpu'
+    device = xm.xla_device() if xm.xla_device() else torch.device(device)
     args.device = device
-    device = torch.device(device)
     return device
 
 
@@ -123,6 +127,9 @@ def broadcast_object(args, obj, src=0):
     # broadcast a pickle-able python object from rank-0 to all ranks
     if args.horovod:
         return hvd.broadcast_object(obj, root_rank=src)
+    if args.use_tpu: 
+        obj = xm.mesh_broadcast(obj, src)
+        return obj
     else:
         if args.rank == src:
             objects = [obj]
@@ -136,6 +143,9 @@ def all_gather_object(args, obj, dst=0):
     # gather a pickle-able python object across all ranks
     if args.horovod:
         return hvd.allgather_object(obj)
+    elif args.use_tpu: 
+        objects = xm.mesh_all_gather(obj)
+        return objects
     else:
         objects = [None for _ in range(args.world_size)]
         dist.all_gather_object(objects, obj)
