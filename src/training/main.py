@@ -13,6 +13,11 @@ from torch import optim
 from torch.cuda.amp import GradScaler
 
 try:
+    import torch_xla.core.xla_model as xm
+except:
+    pass 
+
+try:
     import wandb
 except ImportError:
     wandb = None
@@ -70,7 +75,10 @@ def get_latest_checkpoint(path: str, remote : bool):
 def main(args):
     args = parse_args(args)
 
-    if torch.cuda.is_available():
+    if args.use_tpu and xm.xla_available():
+        xm.set_rng_seed(args.seed)  # Set random seed 
+        xm.set_matmul_reduction_type(xm.MatmulReductionType.TREE)
+    elif torch.cuda.is_available():
         # This enables tf32 on Ampere GPUs which is only 8% slower than
         # float16 and almost as accurate as float32
         # This was a default in pytorch until 1.12

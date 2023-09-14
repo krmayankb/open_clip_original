@@ -3,6 +3,11 @@ import os
 import torch
 import torch.distributed as dist
 
+try: 
+    import torch_xla.core.xla_model as xm
+except ImportError:
+    pass
+
 try:
     import horovod.torch as hvd
 except ImportError:
