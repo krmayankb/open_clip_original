@@ -75,7 +75,7 @@ def get_latest_checkpoint(path: str, remote : bool):
 
 def main_worker(rank, args):
     if args.use_tpu and xm.xla_device():
-        xm.set_rng_seed(args.seed)  # Set random seed 
+        xm.set_rng_state(args.seed)  # Set random seed 
         device = xm.xla_device()
     elif torch.cuda.is_available():
         # This enables tf32 on Ampere GPUs which is only 8% slower than
