@@ -234,10 +234,21 @@ class CLIP(nn.Module):
         self.visual.set_grad_checkpointing(enable)
         self.transformer.grad_checkpointing = enable
 
+    def xm_normalize(self, features, normalize: bool=False):
+        if normalize:
+            norm = xm.all_reduce("sum", features ** 2)
+            norm = torch.sqrt(norm)
+            
+            # Divide features by the norm to normalize
+            features = features / norm
+    
+        return features
+
+    
     def encode_image(self, image, normalize: bool = False):
         features = self.visual(image)
         if xm.xla_device() and xm is not None:
-            xm.normalize(features, normalize=normalize)
+            return self.xm_normalize(features, normalize=normalize)
         else: 
             return F.normalize(features, dim=-1) if normalize else features
 
@@ -255,7 +266,7 @@ class CLIP(nn.Module):
         # take features from the eot embedding (eot_token is the highest number in each sequence)
         x = x[torch.arange(x.shape[0]), text.argmax(dim=-1)] @ self.text_projection
         if xm.xla_device() and xm is not None:
-            xm.normalize(x, normalize=normalize)
+            return self.xm_normalize(x, normalize=normalize)
         else: 
             return F.normalize(x, dim=-1) if normalize else x
         
