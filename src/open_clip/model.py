@@ -19,6 +19,10 @@ from .timm_model import TimmModel
 from .transformer import LayerNormFp32, LayerNorm, QuickGELU, Attention, VisionTransformer, TextTransformer
 from .utils import to_2tuple
 
+try: 
+    import torch_xla.core.xla_model as xm
+except: 
+    xm = None
 
 @dataclass
 class CLIPVisionCfg:
@@ -183,7 +187,16 @@ def _build_text_tower(
         )
     return text
 
-
+def xm_normalize(features, normalize: bool=False):
+    if normalize:
+        norm = xm.all_reduce("sum", features ** 2, devices=[xm.xla_device()])
+        norm = torch.sqrt(norm)
+            
+        # Divide features by the norm to normalize
+        features = features / norm
+    
+    return features
+    
 class CLIP(nn.Module):
     output_dict: torch.jit.Final[bool]
 
@@ -223,7 +236,11 @@ class CLIP(nn.Module):
 
     def encode_image(self, image, normalize: bool = False):
         features = self.visual(image)
-        return F.normalize(features, dim=-1) if normalize else features
+        if xm.xla_device() and xm is not None:
+            xm.normalize(features, normalize=normalize)
+        else: 
+            return F.normalize(features, dim=-1) if normalize else features
+
 
     def encode_text(self, text, normalize: bool = False):
         cast_dtype = self.transformer.get_cast_dtype()
@@ -237,7 +254,11 @@ class CLIP(nn.Module):
         x = self.ln_final(x)  # [batch_size, n_ctx, transformer.width]
         # take features from the eot embedding (eot_token is the highest number in each sequence)
         x = x[torch.arange(x.shape[0]), text.argmax(dim=-1)] @ self.text_projection
-        return F.normalize(x, dim=-1) if normalize else x
+        if xm.xla_device() and xm is not None:
+            xm.normalize(x, normalize=normalize)
+        else: 
+            return F.normalize(x, dim=-1) if normalize else x
+        
 
     def forward(
             self,
