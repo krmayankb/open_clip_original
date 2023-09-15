@@ -437,7 +437,7 @@ def parse_args(args):
         'Allows int8 training/inference, etc.'
     )
     parser.add_argument(
-        "use_tpu", 
+        "--use_tpu", 
         default=False, 
         action="store_true", 
         help="whether to use TPU for training"
