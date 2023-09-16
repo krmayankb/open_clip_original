@@ -16,6 +16,7 @@ try:
     import torch_xla
     import torch_xla.core.xla_model as xm
     import torch_xla.distributed.xla_multiprocessing as xmp
+    import torch_xla.distributed.data_parallel as TPU_DP
 except ImportError:
     pass 
 
@@ -295,8 +296,12 @@ def main_worker(rank, args):
         if args.ddp_static_graph:
             # this doesn't exist in older PyTorch, arg only added if enabled
             ddp_args['static_graph'] = True
-        model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[device], **ddp_args)
-    
+        if not xm.xla_device(): 
+            model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[device], **ddp_args)
+        else: 
+            devices = xm.get_xla_supported_devices()
+            model = TPU_DP.DataParallel(model, device_ids=devices)
+            
         if args.distill:
             dist_model = torch.nn.parallel.DistributedDataParallel(dist_model, device_ids=[device], **ddp_args)
 

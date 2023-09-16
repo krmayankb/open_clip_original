@@ -25,6 +25,14 @@ try:
 except ImportError:
     hvd = None
 
+try:
+    import torch_xla
+    import torch_xla.core.xla_model as xm
+    import torch_xla.distributed.xla_multiprocessing as xmp
+    import torch_xla.distributed.data_parallel as TPU_DP
+except ImportError:
+    pass 
+
 
 class CsvDataset(Dataset):
     def __init__(self, input_filename, transforms, img_key, caption_key, sep="\t", tokenizer=None):
@@ -560,4 +568,7 @@ def get_data(args, preprocess_fns, epoch=0, tokenizer=None):
     if args.imagenet_v2 is not None:
         data["imagenet-v2"] = get_imagenet(args, preprocess_fns, "v2")
 
+    if args.use_tpu:
+        devices = xm.get_xla_supported_devices()
+        data = TPU_DP.DataParallel(data, device_ids=devices)
     return data

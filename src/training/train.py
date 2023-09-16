@@ -11,8 +11,10 @@ from torch.nn.parallel.distributed import DistributedDataParallel
 
 try: 
     import torch_xla.core.xla_model as xm
+    import torch_xla.distributed.data_parallel as dp
 except: 
     pass
+
 
 try:
     import wandb
