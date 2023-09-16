@@ -328,7 +328,7 @@ def main_worker(rank, args):
             hvd.broadcast_parameters(model.state_dict(), root_rank=0)
             hvd.broadcast_optimizer_state(optimizer, root_rank=0)
 
-        scaler = GradScaler() if args.precision == "amp" else None
+        scaler = GradScaler() if args.precision == "amp" and not xm.xla_device() else None
 
     # optionally resume from a checkpoint
     start_epoch = 0
